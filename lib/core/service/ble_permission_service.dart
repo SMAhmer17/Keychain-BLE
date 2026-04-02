@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:keychain_ble/core/utils/app_logger.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -40,7 +41,7 @@ class BlePermissionService {
     }
 
     // ── 3. Android: request appropriate permissions based on API level ───────
-    final permissions = _requiredAndroidPermissions();
+    final permissions = await _requiredAndroidPermissions();
     AppLogger.info('[BLE] Requesting permissions: $permissions');
 
     final statuses = await permissions.request();
@@ -65,14 +66,18 @@ class BlePermissionService {
     return BlePermissionResult.denied;
   }
 
-  List<Permission> _requiredAndroidPermissions() {
-    // Request all BLE-related permissions.
-    // permission_handler automatically skips permissions not applicable
-    // to the current API level (e.g. locationWhenInUse is skipped on API 31+).
+  Future<List<Permission>> _requiredAndroidPermissions() async {
+    final androidInfo = await DeviceInfoPlugin().androidInfo;
+    final sdkInt = androidInfo.version.sdkInt;
+    AppLogger.info('[BLE] Android SDK: $sdkInt');
+
     return [
       Permission.bluetoothScan,
       Permission.bluetoothConnect,
-      Permission.locationWhenInUse, // Required for BLE scanning on API < 31
+      // ACCESS_FINE_LOCATION is only required for BLE scanning below API 31.
+      // The manifest declares it with maxSdkVersion="30", so permission_handler
+      // returns `denied` on API 31+ if we request it — causing a false failure.
+      if (sdkInt < 31) Permission.locationWhenInUse,
     ];
   }
 }
