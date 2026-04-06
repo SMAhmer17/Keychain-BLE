@@ -158,6 +158,17 @@ class _ConnectionStatusScreenState
             const SizedBox(height: 8),
           ],
 
+          if (status is BleError && status.device != null) ...[
+            FilledButton.icon(
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry Connection'),
+              onPressed: () => ref
+                  .read(bleConnectionNotifierProvider.notifier)
+                  .connect(status.device!),
+            ),
+            const SizedBox(height: 8),
+          ],
+
           OutlinedButton.icon(
             icon: const Icon(Icons.bluetooth_searching),
             label: const Text('Discover Again'),

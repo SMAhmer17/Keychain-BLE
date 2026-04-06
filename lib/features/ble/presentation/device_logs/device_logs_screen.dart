@@ -64,7 +64,8 @@ class _DeviceLogsScreenState extends ConsumerState<DeviceLogsScreen> {
             if (deviceName != null)
               Text(
                 deviceName,
-                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.normal),
               ),
           ],
         ),
@@ -75,9 +76,8 @@ class _DeviceLogsScreenState extends ConsumerState<DeviceLogsScreen> {
             IconButton(
               icon: const Icon(Icons.bluetooth_disabled),
               tooltip: 'Disconnect',
-              onPressed: () => ref
-                  .read(bleConnectionNotifierProvider.notifier)
-                  .disconnect(),
+              onPressed: () =>
+                  ref.read(bleConnectionNotifierProvider.notifier).disconnect(),
             ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
@@ -88,27 +88,50 @@ class _DeviceLogsScreenState extends ConsumerState<DeviceLogsScreen> {
       ),
       body: Column(
         children: [
-          // ————————————————— Log list —————————————————
+          // ————————————————— Log list / state views —————————————————
           Expanded(
-            child: isConnected || logs.isNotEmpty
-                ? logs.isEmpty
-                    ? const Center(child: Text('No logs yet. Send a command!'))
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        itemCount: logs.length,
-                        itemBuilder: (context, index) =>
-                            _LogEntryRow(entry: logs[index]),
-                      )
-                : _NotConnectedPlaceholder(
-                    onGoDiscover: () => context.go(AppRoute.discover),
-                  ),
+            child: switch (connectionStatus) {
+              // Actively connecting — show spinner so user knows it's working
+              BleConnecting(:final device) => _ConnectingPlaceholder(
+                  deviceName: device.name,
+                ),
+
+              // Connected — show logs (or empty hint if none yet)
+              BleConnected() => logs.isEmpty
+                  ? const Center(
+                      child: Text('Connected. Send a command to see logs.'))
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      itemCount: logs.length,
+                      itemBuilder: (_, index) =>
+                          _LogEntryRow(entry: logs[index]),
+                    ),
+
+              // Error — show message + retry / back to discover
+              BleError(:final message) => _ErrorPlaceholder(
+                  message: message,
+                  onGoDiscover: () => context.go(AppRoute.discover),
+                ),
+
+              // Idle or disconnected — show logs if any remain, else placeholder
+              _ => logs.isNotEmpty
+                  ? ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
+                      itemCount: logs.length,
+                      itemBuilder: (_, index) =>
+                          _LogEntryRow(entry: logs[index]),
+                    )
+                  : _NotConnectedPlaceholder(
+                      onGoDiscover: () => context.go(AppRoute.discover),
+                    ),
+            },
           ),
 
-          // ————————————————— Input area —————————————————
+          // ————————————————— Input area (only when connected) —————————————————
           if (isConnected) ...[
             const Divider(height: 1),
             _ColorButtons(onSend: _sendCommand),
@@ -117,7 +140,7 @@ class _DeviceLogsScreenState extends ConsumerState<DeviceLogsScreen> {
             const Divider(height: 1),
             _CommandInputBar(
               controller: _commandController,
-              onSend: () => _sendFromTextField(),
+              onSend: _sendFromTextField,
             ),
           ],
         ],
@@ -329,6 +352,75 @@ class _CommandInputBar extends StatelessWidget {
             FilledButton(
               onPressed: onSend,
               child: const Text('Send'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConnectingPlaceholder extends StatelessWidget {
+  const _ConnectingPlaceholder({required this.deviceName});
+  final String deviceName;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(
+            width: 48,
+            height: 48,
+            child: CircularProgressIndicator(strokeWidth: 3),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Connecting to $deviceName…',
+            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Discovering services',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ErrorPlaceholder extends StatelessWidget {
+  const _ErrorPlaceholder({required this.message, required this.onGoDiscover});
+  final String message;
+  final VoidCallback onGoDiscover;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 64, color: Colors.red.shade300),
+            const SizedBox(height: 16),
+            const Text(
+              'Connection Failed',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            FilledButton.icon(
+              icon: const Icon(Icons.bluetooth_searching),
+              label: const Text('Back to Discover'),
+              onPressed: onGoDiscover,
             ),
           ],
         ),

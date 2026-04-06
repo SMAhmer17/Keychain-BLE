@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:keychain_ble/core/constants/ble_constants.dart';
@@ -41,6 +42,12 @@ class BleService {
       timeout: const Duration(seconds: 15),
       autoConnect: false,
     );
+    // Android's GATT stack needs a brief moment after connection before
+    // service discovery is reliable. Without this, discoverServices() can
+    // return an empty list on the first attempt on many Android devices.
+    if (Platform.isAndroid) {
+      await Future.delayed(const Duration(milliseconds: 300));
+    }
     AppLogger.success('[BLE] Connected to ${device.platformName}');
   }
 
