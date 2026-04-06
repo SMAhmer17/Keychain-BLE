@@ -18,6 +18,9 @@ abstract class BleRepository {
     required String characteristicUuid,
   });
 
+  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+      autoDiscoverCharacteristic(BleDevice device);
+
   Future<void> sendCommand(BluetoothCharacteristic characteristic, String command);
   Stream<String> notificationStream(BluetoothCharacteristic characteristic);
 

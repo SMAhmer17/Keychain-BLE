@@ -98,9 +98,14 @@ class BleService {
     }).firstOrNull;
 
     if (targetService == null) {
+      final available = services.map((s) => s.uuid.toString()).join(', ');
       AppLogger.error('[BLE] Service not found: $serviceUuid');
-      AppLogger.info('[BLE] Available services: ${services.map((s) => s.uuid.toString()).join(', ')}');
-      throw StateError('Service $serviceUuid not found on ${device.platformName}');
+      AppLogger.info('[BLE] Available services: $available');
+      throw StateError(
+        'Service UUID not found.\n'
+        'Expected: $serviceUuid\n'
+        'Device has: ${available.isEmpty ? '(none)' : available}',
+      );
     }
 
     final characteristic = targetService.characteristics.where((c) {
@@ -108,14 +113,53 @@ class BleService {
     }).firstOrNull;
 
     if (characteristic == null) {
+      final available = targetService.characteristics.map((c) => c.uuid.toString()).join(', ');
       AppLogger.error('[BLE] Characteristic not found: $characteristicUuid');
-      AppLogger.info('[BLE] Available characteristics: ${targetService.characteristics.map((c) => c.uuid.toString()).join(', ')}');
-      throw StateError('Characteristic $characteristicUuid not found');
+      AppLogger.info('[BLE] Available characteristics: $available');
+      throw StateError(
+        'Characteristic UUID not found.\n'
+        'Expected: $characteristicUuid\n'
+        'Service has: ${available.isEmpty ? '(none)' : available}',
+      );
     }
 
     await characteristic.setNotifyValue(true);
     AppLogger.success('[BLE] Subscribed to characteristic notifications');
     return characteristic;
+  }
+
+  /// Auto-discovers the first characteristic that supports both Write and
+  /// Notify across all services. Returns the characteristic and the UUIDs
+  /// that were discovered. Throws [StateError] if nothing suitable is found.
+  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+      autoDiscoverCharacteristic(BluetoothDevice device) async {
+    final services = await discoverServices(device);
+
+    for (final service in services) {
+      for (final char in service.characteristics) {
+        final props = char.properties;
+        final canWrite = props.write || props.writeWithoutResponse;
+        final canNotify = props.notify || props.indicate;
+        if (canWrite && canNotify) {
+          await char.setNotifyValue(true);
+          final svcUuid = service.uuid.toString();
+          final charUuid = char.uuid.toString();
+          AppLogger.success(
+            '[BLE] Auto-discovered → service=$svcUuid  char=$charUuid',
+          );
+          return (
+            characteristic: char,
+            serviceUuid: svcUuid,
+            characteristicUuid: charUuid,
+          );
+        }
+      }
+    }
+
+    final allServices = services.map((s) => s.uuid.toString()).join(', ');
+    throw StateError(
+      'No writable+notifiable characteristic found.\nDevice services: $allServices',
+    );
   }
 
   // ————————————————— Communication —————————————————

@@ -59,6 +59,10 @@ class BleDataSource {
         characteristicUuid: characteristicUuid,
       );
 
+  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+      autoDiscoverCharacteristic(BleDevice device) =>
+          _service.autoDiscoverCharacteristic(device.rawDevice);
+
   // ————————————————— Communication —————————————————
 
   Future<void> sendCommand(

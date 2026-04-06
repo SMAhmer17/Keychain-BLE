@@ -82,6 +82,17 @@ class BleRepositoryImpl implements BleRepository {
   }
 
   @override
+  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+      autoDiscoverCharacteristic(BleDevice device) async {
+    try {
+      return await _dataSource.autoDiscoverCharacteristic(device);
+    } catch (e, stack) {
+      AppLogger.error('[BLE] autoDiscoverCharacteristic failed', e, stack);
+      rethrow;
+    }
+  }
+
+  @override
   Future<void> sendCommand(
     BluetoothCharacteristic characteristic,
     String command,

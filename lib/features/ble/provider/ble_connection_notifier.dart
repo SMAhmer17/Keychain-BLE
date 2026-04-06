@@ -6,7 +6,6 @@ import 'package:keychain_ble/core/utils/app_logger.dart';
 import 'package:keychain_ble/features/ble/model/ble_connection_status.dart';
 import 'package:keychain_ble/features/ble/model/ble_device.dart';
 import 'package:keychain_ble/features/ble/model/ble_log_entry.dart';
-import 'package:keychain_ble/features/ble/provider/ble_config_notifier.dart';
 import 'package:keychain_ble/features/ble/provider/ble_providers.dart';
 import 'package:keychain_ble/features/ble/repository/ble_repository.dart';
 
@@ -30,25 +29,21 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
   Future<void> connect(BleDevice device) async {
     state = BleConnectionStatus.connecting(device: device);
 
-    // Read UUIDs from config at connection time so they're always current
-    final config = ref.read(bleConfigNotifierProvider);
-
     try {
       await _repo.connect(device);
-      final characteristic = await _repo.subscribeToCharacteristic(
-        device,
-        serviceUuid: config.serviceUuid,
-        characteristicUuid: config.characteristicUuid,
-      );
-      _characteristic = characteristic;
+
+      // Auto-discover the writable+notifiable characteristic from the device
+      // so no manual UUID configuration is needed.
+      final discovered = await _repo.autoDiscoverCharacteristic(device);
+      _characteristic = discovered.characteristic;
 
       final rssi = await _repo.readRssi(device).catchError((_) => 0);
 
       state = BleConnectionStatus.connected(
         device: device,
-        characteristic: characteristic,
-        serviceUuid: config.serviceUuid,
-        characteristicUuid: config.characteristicUuid,
+        characteristic: discovered.characteristic,
+        serviceUuid: discovered.serviceUuid,
+        characteristicUuid: discovered.characteristicUuid,
         rssi: rssi,
       );
 
