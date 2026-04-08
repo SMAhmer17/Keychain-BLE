@@ -20,6 +20,9 @@ class BleDataSource {
         (results) {
           final named = <BleDevice>[];
           for (final r in results) {
+            // Skip devices with no signal — these are stale cached entries
+            if (r.rssi == 0) continue;
+
             final name = r.device.platformName.isNotEmpty
                 ? r.device.platformName
                 : r.advertisementData.advName.isNotEmpty
@@ -59,7 +62,7 @@ class BleDataSource {
         characteristicUuid: characteristicUuid,
       );
 
-  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+  Future<({BluetoothCharacteristic writeCharacteristic, BluetoothCharacteristic notifyCharacteristic, String serviceUuid})>
       autoDiscoverCharacteristic(BleDevice device) =>
           _service.autoDiscoverCharacteristic(device.rawDevice);
 

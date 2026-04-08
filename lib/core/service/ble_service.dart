@@ -21,7 +21,10 @@ class BleService {
 
   Future<void> startScan({Duration timeout = BleConstants.scanTimeout}) async {
     AppLogger.info('[BLE] Starting scan (timeout: ${timeout.inSeconds}s)');
-    await FlutterBluePlus.startScan(timeout: timeout);
+    await FlutterBluePlus.startScan(
+      timeout: timeout,
+      removeIfGone: const Duration(seconds: 3),
+    );
   }
 
   Future<void> stopScan() async {
@@ -128,31 +131,58 @@ class BleService {
     return characteristic;
   }
 
-  /// Auto-discovers the first characteristic that supports both Write and
-  /// Notify across all services. Returns the characteristic and the UUIDs
-  /// that were discovered. Throws [StateError] if nothing suitable is found.
-  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
-      autoDiscoverCharacteristic(BluetoothDevice device) async {
+  /// Auto-discovers write and notify characteristics across all services.
+  ///
+  /// First tries to find a single characteristic that supports both Write and
+  /// Notify. If not found (common on ESP32 firmware with split characteristics),
+  /// finds the best write char and notify char separately within the same service.
+  Future<({
+    BluetoothCharacteristic writeCharacteristic,
+    BluetoothCharacteristic notifyCharacteristic,
+    String serviceUuid,
+  })> autoDiscoverCharacteristic(BluetoothDevice device) async {
     final services = await discoverServices(device);
 
     for (final service in services) {
-      for (final char in service.characteristics) {
+      final chars = service.characteristics;
+      final svcUuid = service.uuid.toString();
+
+      // Pass 1 — single characteristic with both Write + Notify (ideal)
+      for (final char in chars) {
         final props = char.properties;
         final canWrite = props.write || props.writeWithoutResponse;
         final canNotify = props.notify || props.indicate;
         if (canWrite && canNotify) {
           await char.setNotifyValue(true);
-          final svcUuid = service.uuid.toString();
-          final charUuid = char.uuid.toString();
-          AppLogger.success(
-            '[BLE] Auto-discovered → service=$svcUuid  char=$charUuid',
-          );
+          AppLogger.success('[BLE] Auto-discovered (combined) → svc=$svcUuid  char=${char.uuid}');
           return (
-            characteristic: char,
+            writeCharacteristic: char,
+            notifyCharacteristic: char,
             serviceUuid: svcUuid,
-            characteristicUuid: charUuid,
           );
         }
+      }
+
+      // Pass 2 — separate write and notify characteristics in the same service
+      final writeChar = chars.where((c) {
+        return c.properties.write || c.properties.writeWithoutResponse;
+      }).firstOrNull;
+
+      final notifyChar = chars.where((c) {
+        return c.properties.notify || c.properties.indicate;
+      }).firstOrNull;
+
+      if (writeChar != null && notifyChar != null) {
+        await notifyChar.setNotifyValue(true);
+        AppLogger.success(
+          '[BLE] Auto-discovered (split) → svc=$svcUuid  '
+          'write=${writeChar.uuid}  notify=${notifyChar.uuid}',
+        );
+        return (
+          writeCharacteristic: writeChar,
+          notifyCharacteristic: notifyChar,
+          serviceUuid: svcUuid,
+        );
       }
     }
 

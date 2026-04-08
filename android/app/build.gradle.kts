@@ -30,6 +30,21 @@ android {
         versionName = flutter.versionName
     }
 
+    flavorDimensions += "app"
+
+    productFlavors {
+        create("keychain") {
+            dimension = "app"
+            applicationId = "com.example.keychain_ble"
+            resValue("string", "app_name", "Keychain BLE")
+        }
+        create("sori") {
+            dimension = "app"
+            applicationId = "com.example.sori"
+            resValue("string", "app_name", "Sori")
+        }
+    }
+
     buildTypes {
         release {
             // TODO: Add your own signing config for the release build.

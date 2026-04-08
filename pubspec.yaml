@@ -34,6 +34,9 @@ dependencies:
   # Code generation annotations
   freezed_annotation: ^3.1.0
 
+  # SVG rendering
+  flutter_svg: ^2.0.10+1
+
 # ————————————————— Dev Dependencies —————————————————
 dev_dependencies:
   flutter_test:
@@ -49,6 +52,10 @@ flutter:
 
   assets:
     - assets/fonts/
+    - assets/images/light/
+    - assets/images/dark/
+    - assets/icons/light/
+    - assets/icons/dark/
 
   fonts:
     - family: Inter
@@ -57,3 +64,7 @@ flutter:
         - asset: assets/fonts/Inter-Regular.ttf
         - asset: assets/fonts/Inter-Medium.ttf
         - asset: assets/fonts/Inter-Bold.ttf
+    - family: Punto
+      fonts:
+        - asset: assets/fonts/punto-bold.otf
+        - asset: assets/fonts/punto.otf

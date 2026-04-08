@@ -82,7 +82,7 @@ class BleRepositoryImpl implements BleRepository {
   }
 
   @override
-  Future<({BluetoothCharacteristic characteristic, String serviceUuid, String characteristicUuid})>
+  Future<({BluetoothCharacteristic writeCharacteristic, BluetoothCharacteristic notifyCharacteristic, String serviceUuid})>
       autoDiscoverCharacteristic(BleDevice device) async {
     try {
       return await _dataSource.autoDiscoverCharacteristic(device);

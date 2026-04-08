@@ -22,6 +22,27 @@ TextStyle interTextStyle({
   );
 }
 
+TextStyle puntoTextStyle({
+  FontWeight? weight,
+  double? size,
+  Color? color,
+  double? height,
+  List<FontFeature>? fontFeatures,
+  TextDecoration? decoration,
+  Color? decorationColor,
+}) {
+  return TextStyle(
+    fontFamily: Utils.kPuntoFontFamily,
+    fontWeight: weight ?? FontWeight.w500,
+    color: color,
+    fontSize: size ?? 16,
+    height: height,
+    fontFeatures: fontFeatures,
+    decoration: decoration,
+    decorationColor: decorationColor,
+  );
+}
+
 TextStyle subTitleTextStyle({
   FontWeight? weight,
   double? size,
