@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:keychain_ble/app2/core/widgets/sori_dots_background.dart';
 import 'package:keychain_ble/core/extensions/size_extensions.dart';
 import 'package:keychain_ble/features/ble/model/ble_connection_status.dart';
 import 'package:keychain_ble/features/ble/provider/ble_connection_notifier.dart';
@@ -19,62 +20,26 @@ class HomeScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // ── Background dot patterns ──────────────────────────────
-          Positioned(
-            top: .15.sh,
-            right: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/center_dots.svg',
-              width: 250,
-              height: 217,
+      body: SoriDotsBackground(
+        child: Stack(
+          children: [
+            // ── App name ─────────────────────────────────────────────
+            Positioned(
+              top: topPad + 20,
+              left: 24,
+              child: SvgPicture.asset(
+                'assets/icons/light/app_name.svg',
+                height: 38,
+              ),
             ),
-          ),
-          // Positioned(
-          //   top: size.height * 0.3,
-          //   left: size.width * 0.05,
-          //   right: size.width * 0.05,
-          //   child: SvgPicture.asset(
-          //     'assets/icons/light/center_circle_dots.svg',
-          //     width: size.width * 0.9,
-          //   ),
-          // ),
-          Positioned(
-            bottom: .15.sh,
-            left: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/bottom_left_dots.svg',
-              width: 185,
-              height: 139,
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/bottom_right_dots.svg',
-              width: 155,
-              height: 132,
-            ),
-          ),
 
-          // ── App name ─────────────────────────────────────────────
-          Positioned(
-            top: topPad + 20,
-            left: 24,
-            child: SvgPicture.asset(
-              'assets/icons/light/app_name.svg',
-              height: 38,
+            // ── Avatar + beads + status ───────────────────────────────
+            Positioned.fill(
+              top: .3.sh,
+              child: _AvatarScene(size: size, isConnected: isConnected),
             ),
-          ),
-
-          // ── Avatar + beads + status ───────────────────────────────
-          Positioned.fill(
-            top: .3.sh,
-            child: _AvatarScene(size: size, isConnected: isConnected),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

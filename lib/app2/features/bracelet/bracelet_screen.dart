@@ -59,25 +59,25 @@ class BraceletScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.white,
       body: CustomScrollView(
-        slivers: [
-          SliverPadding(
-            padding: EdgeInsets.fromLTRB(20, topPad + 24, 20, 32),
-            sliver: SliverList(
-              delegate: SliverChildListDelegate([
-                const _ScreenHeader(),
-                const SizedBox(height: 24),
-                const _StatsSection(
-                  braceletCount: 5,
-                  charmsCount: 2,
-                  totalBeads: 23,
-                ),
-                const SizedBox(height: 32),
-                _BeadList(beads: _beads),
-              ]),
+          slivers: [
+            SliverPadding(
+              padding: EdgeInsets.fromLTRB(20, topPad + 24, 20, 32),
+              sliver: SliverList(
+                delegate: SliverChildListDelegate([
+                  const _ScreenHeader(),
+                  const SizedBox(height: 24),
+                  const _StatsSection(
+                    braceletCount: 5,
+                    charmsCount: 2,
+                    totalBeads: 23,
+                  ),
+                  const SizedBox(height: 32),
+                  _BeadList(beads: _beads),
+                ]),
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
     );
   }
 }

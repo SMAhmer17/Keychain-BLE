@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:keychain_ble/app2/core/widgets/sori_dots_background.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data model
@@ -54,63 +55,33 @@ class SoriSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
-    final size = MediaQuery.sizeOf(context);
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Stack(
-        children: [
-          // ── Background dot decorations ──────────────────────────
-          Positioned(
-            top: 0,
-            right: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/center_dots.svg',
-              width: size.width * 0.55,
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/bottom_right_dots.svg',
-              width: size.width * 0.45,
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            left: 0,
-            child: SvgPicture.asset(
-              'assets/icons/light/bottom_left_dots.svg',
-              width: size.width * 0.35,
-            ),
-          ),
-
-          // ── Content ─────────────────────────────────────────────
-          SafeArea(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // App name
-                Padding(
-                  padding: EdgeInsets.fromLTRB(24, topPad > 0 ? 4 : 20, 24, 0),
-                  child: SvgPicture.asset(
-                    'assets/icons/light/app_name.svg',
-                    height: 38,
-                  ),
+      body: SoriDotsBackground(
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // App name
+              Padding(
+                padding: EdgeInsets.fromLTRB(24, 60, 24, 0),
+                child: SvgPicture.asset(
+                  'assets/icons/light/app_name.svg',
+                  height: 38,
                 ),
-                const SizedBox(height: 24),
-
-                // Menu card
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _SettingsCard(items: _items),
-                ),
-                const SizedBox(height: 16),
-              ],
-            ),
+              ),
+              const SizedBox(height: 24),
+              Spacer(),
+              // Menu card
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: _SettingsCard(items: _items),
+              ),
+              const SizedBox(height: 16),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
