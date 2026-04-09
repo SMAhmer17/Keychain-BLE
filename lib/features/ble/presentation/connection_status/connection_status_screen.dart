@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,26 +19,7 @@ class ConnectionStatusScreen extends ConsumerStatefulWidget {
 
 class _ConnectionStatusScreenState
     extends ConsumerState<ConnectionStatusScreen> {
-  Timer? _rssiTimer;
   bool _autoReconnect = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _startRssiPolling();
-  }
-
-  @override
-  void dispose() {
-    _rssiTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startRssiPolling() {
-    _rssiTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      ref.read(bleConnectionNotifierProvider.notifier).refreshRssi();
-    });
-  }
 
   @override
   Widget build(BuildContext context) {

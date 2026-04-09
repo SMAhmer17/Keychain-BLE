@@ -23,6 +23,7 @@ class BleService {
     AppLogger.info('[BLE] Starting scan (timeout: ${timeout.inSeconds}s)');
     await FlutterBluePlus.startScan(
       timeout: timeout,
+      continuousUpdates: true,
       removeIfGone: const Duration(seconds: 3),
     );
   }

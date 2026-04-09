@@ -8,13 +8,12 @@ class BleConstants {
   // ————————————————— ESP32 UUIDs —————————————————
 
   /// Primary GATT service UUID exposed by the ESP32.
-  static const String serviceUuid =
-      '0000FFE0-0000-1000-8000-00805F9B34FB';
+  static const String serviceUuid = '4fafc201-1fb5-459e-8fcc-c5c9c331914b';
 
   /// Characteristic UUID used for both write (app → ESP32)
   /// and notify (ESP32 → app).
   static const String characteristicUuid =
-      '0000FFE1-0000-1000-8000-00805F9B34FB';
+      'beb5483e-36e1-4688-b7f5-ea07361b26a8';
 
   // ————————————————— Scan config —————————————————
 

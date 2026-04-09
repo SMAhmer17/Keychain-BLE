@@ -21,6 +21,7 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
   BluetoothCharacteristic? _writeCharacteristic;
   BluetoothCharacteristic? _notifyCharacteristic;
   bool _autoReconnect = false;
+  Timer? _rssiTimer;
 
   @override
   BleConnectionStatus build() {
@@ -28,12 +29,57 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
     _prefs = ref.read(sharedPreferencesProvider);
     ref.onDispose(() {
       _connectionStateSub?.cancel();
+      _rssiTimer?.cancel();
     });
 
     // Check if the device is still connected at OS level after app restart
     Future.microtask(_tryRestoreConnection);
 
     return const BleConnectionStatus.idle();
+  }
+
+  void _startRssiPolling() {
+    _rssiTimer?.cancel();
+    _rssiTimer = Timer.periodic(const Duration(seconds: 3), (_) => _heartbeat());
+  }
+
+  Future<void> _heartbeat() async {
+    final current = state;
+    if (current is! BleConnected) return;
+
+    // Check OS-level connected devices list — this updates before supervision timeout
+    final stillConnected = FlutterBluePlus.connectedDevices
+        .any((d) => d.remoteId.str == current.device.remoteId);
+
+    if (!stillConnected) {
+      AppLogger.warning('[BLE] Device no longer in OS connected list — disconnecting');
+      _onDeviceLost(current.device);
+      return;
+    }
+
+    // Also update RSSI while connected
+    try {
+      final rssi = await _repo.readRssi(current.device);
+      state = current.copyWith(rssi: rssi);
+    } catch (_) {}
+  }
+
+  void _onDeviceLost(BleDevice device) {
+    _stopRssiPolling();
+    _connectionStateSub?.cancel();
+    _writeCharacteristic = null;
+    _notifyCharacteristic = null;
+    state = BleConnectionStatus.disconnected(lastDevice: device);
+    if (_autoReconnect) {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (state is BleDisconnected) connect(device);
+      });
+    }
+  }
+
+  void _stopRssiPolling() {
+    _rssiTimer?.cancel();
+    _rssiTimer = null;
   }
 
   // ————————————————— Restore on app reopen —————————————————
@@ -80,6 +126,7 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
       );
 
       _watchConnectionState(device);
+      _startRssiPolling();
       AppLogger.success('[BLE] Session restored with $savedName');
     } catch (e, stack) {
       AppLogger.error('[BLE] Failed to restore session', e, stack);
@@ -113,6 +160,7 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
       );
 
       _watchConnectionState(device);
+      _startRssiPolling();
     } catch (e, stack) {
       AppLogger.error('[BLE] Connection failed', e, stack);
       state = BleConnectionStatus.error(message: e.toString(), device: device);
@@ -124,19 +172,7 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
     _connectionStateSub = _repo.connectionStateStream(device).listen((cs) {
       if (cs == BluetoothConnectionState.disconnected) {
         AppLogger.warning('[BLE] Connection lost to ${device.name}');
-        state = BleConnectionStatus.disconnected(lastDevice: device);
-        _writeCharacteristic = null;
-        _notifyCharacteristic = null;
-        _connectionStateSub?.cancel();
-
-        if (_autoReconnect) {
-          Future.delayed(const Duration(seconds: 2), () {
-            if (state is BleDisconnected) {
-              AppLogger.info('[BLE] Auto-reconnecting to ${device.name}...');
-              connect(device);
-            }
-          });
-        }
+        _onDeviceLost(device);
       }
     });
   }
@@ -155,6 +191,7 @@ class BleConnectionNotifier extends Notifier<BleConnectionStatus> {
     await _prefs.remove(_kLastDeviceName);
 
     try {
+      _stopRssiPolling();
       _connectionStateSub?.cancel();
       _connectionStateSub = null;
       _writeCharacteristic = null;

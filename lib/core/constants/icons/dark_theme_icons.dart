@@ -5,15 +5,13 @@ class DarkThemeIcons implements AppIcons {
 
   @override
   String get refresh => '${_iconPath}refresh.svg';
-
   @override
   String get visible => '${_iconPath}visible.svg';
-
   @override
   String get invisible => '${_iconPath}invisible.svg';
 
   //----- sori ----
-
+  
   @override
   String get appName => '${_iconPath}app_name.svg';
   @override
