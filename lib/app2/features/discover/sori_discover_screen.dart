@@ -1,178 +1,844 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:keychain_ble/app2/core/widgets/sori_dots_background.dart';
+import 'package:keychain_ble/features/ble/model/ble_connection_status.dart';
+import 'package:keychain_ble/features/ble/provider/ble_connection_notifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Bead config — positions as fractions of available width/height
+// Named bead definitions — shared by orbit view and carousel
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _BeadConfig {
+class _BeadDef {
+  final int id;
   final Color color;
+  final String colorName;
   final String iconPath;
-  final double size;
 
-  /// Fraction of available width (0.0 – 1.0), anchors to bead center
-  final double leftFrac;
-
-  /// Fraction of available height (0.0 – 1.0), anchors to bead center
-  final double topFrac;
-
-  const _BeadConfig({
+  const _BeadDef({
+    required this.id,
     required this.color,
+    required this.colorName,
     required this.iconPath,
-    required this.size,
-    required this.leftFrac,
-    required this.topFrac,
   });
 }
 
+const _kBeads = [
+  _BeadDef(
+    id: 0,
+    color: Color(0xFFEF9A9A),
+    colorName: 'PINK',
+    iconPath: 'assets/icons/light/heart_beads.svg',
+  ),
+  _BeadDef(
+    id: 1,
+    color: Color(0xFFCE93D8),
+    colorName: 'PURPLE',
+    iconPath: 'assets/icons/light/plus_beads.svg',
+  ),
+  _BeadDef(
+    id: 2,
+    color: Color(0xFF90CAF9),
+    colorName: 'BLUE',
+    iconPath: 'assets/icons/light/heart_beads.svg',
+  ),
+  _BeadDef(
+    id: 3,
+    color: Color(0xFFFFCC80),
+    colorName: 'ORANGE',
+    iconPath: 'assets/icons/light/plus_beads.svg',
+  ),
+  _BeadDef(
+    id: 4,
+    color: Color(0xFFA5D6A7),
+    colorName: 'GREEN',
+    iconPath: 'assets/icons/light/star_beads.svg',
+  ),
+];
+
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Screen
+// Screen root
 // ─────────────────────────────────────────────────────────────────────────────
 
-class SoriDiscoverScreen extends StatelessWidget {
+class SoriDiscoverScreen extends ConsumerStatefulWidget {
   const SoriDiscoverScreen({super.key});
 
-  // Positions form an oval ring (cx≈0.43, cy≈0.46).
-  // leftFrac × screenWidth  = horizontal pixel centre.
-  // topFrac  × screenHeight = vertical pixel centre.
-  // Aspect-ratio correction (≈390×780) keeps the ring visually circular.
-  static const _beads = [
-    // ── Outer ring — 5 large beads ───────────────────────────────
-    _BeadConfig(
-      color: Color(0xFFCE93D8), // purple  — 10 o'clock
-      iconPath: 'assets/icons/light/star_beads.svg',
-      size: 110,
-      leftFrac: 0.28,
-      topFrac: 0.18,
-    ),
-    _BeadConfig(
-      color: Color(0xFFA5D6A7), // green   — 9 o'clock
-      iconPath: 'assets/icons/light/star_beads.svg',
-      size: 130,
-      leftFrac: 0.09,
-      topFrac: 0.38,
-    ),
-    _BeadConfig(
-      color: Color(0xFFFFF176), // yellow  — 7 o'clock
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 130,
-      leftFrac: 0.14,
-      topFrac: 0.58,
-    ),
-    _BeadConfig(
-      color: Color(0xFF90CAF9), // blue    — 3 o'clock
-      iconPath: 'assets/icons/light/heart_beads.svg',
-      size: 140,
-      leftFrac: 0.70,
-      topFrac: 0.53,
-    ),
-    _BeadConfig(
-      color: Color(0xFFF48FB1), // pink    — 5 o'clock
-      iconPath: 'assets/icons/light/heart_beads.svg',
-      size: 120,
-      leftFrac: 0.38,
-      topFrac: 0.70,
-    ),
+  @override
+  ConsumerState<SoriDiscoverScreen> createState() =>
+      _SoriDiscoverScreenState();
+}
 
-    // ── Middle ring — 3 medium beads filling the upper arc ────────
-    _BeadConfig(
-      color: Color(0xFF80DEEA), // teal    — 12 o'clock
-      iconPath: 'assets/icons/light/heart_beads.svg',
-      size: 80,
-      leftFrac: 0.52,
-      topFrac: 0.11,
-    ),
-    _BeadConfig(
-      color: Color(0xFFFFF59D), // light yellow — 1 o'clock
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 62,
-      leftFrac: 0.63,
-      topFrac: 0.22,
-    ),
-    _BeadConfig(
-      color: Color(0xFFB39DDB), // lavender — 2 o'clock
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 50,
-      leftFrac: 0.82,
-      topFrac: 0.38,
-    ),
+class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
+    with TickerProviderStateMixin {
+  // Drives continuous orbital motion (0 → 1, repeating)
+  late final AnimationController _orbitCtrl;
 
-    // ── Inner cluster — 5 small beads scattered at the centre ─────
-    _BeadConfig(
-      color: Color(0xFFCE93D8), // purple
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 30,
-      leftFrac: 0.34,
-      topFrac: 0.33,
-    ),
-    _BeadConfig(
-      color: Color(0xFF80DEEA), // teal
-      iconPath: 'assets/icons/light/heart_beads.svg',
-      size: 38,
-      leftFrac: 0.44,
-      topFrac: 0.41,
-    ),
-    _BeadConfig(
-      color: Color(0xFFFFCC80), // orange
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 32,
-      leftFrac: 0.54,
-      topFrac: 0.36,
-    ),
-    _BeadConfig(
-      color: Color(0xFFC5E1A5), // green
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 28,
-      leftFrac: 0.47,
-      topFrac: 0.49,
-    ),
-    _BeadConfig(
-      color: Color(0xFFB39DDB), // lavender
-      iconPath: 'assets/icons/light/plus_beads.svg',
-      size: 24,
-      leftFrac: 0.60,
-      topFrac: 0.44,
-    ),
-  ];
+  // Drives the fade between orbit view and carousel view
+  late final AnimationController _modeCtrl;
+
+  bool _carouselMode = false;
+  late final PageController _pageCtrl;
+  int _currentPage = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _orbitCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    )..repeat();
+
+    _modeCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 380),
+    );
+
+    _pageCtrl = PageController(viewportFraction: 0.72);
+    _pageCtrl.addListener(() {
+      final p = _pageCtrl.page?.round() ?? 0;
+      if (p != _currentPage) setState(() => _currentPage = p);
+    });
+  }
+
+  @override
+  void dispose() {
+    _orbitCtrl.dispose();
+    _modeCtrl.dispose();
+    _pageCtrl.dispose();
+    super.dispose();
+  }
+
+  void _enterCarousel(int index) {
+    setState(() {
+      _carouselMode = true;
+      _currentPage = index;
+    });
+    _modeCtrl.forward();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_pageCtrl.hasClients) _pageCtrl.jumpToPage(index);
+    });
+  }
+
+  void _exitCarousel() {
+    _modeCtrl.reverse().then((_) {
+      if (mounted) setState(() => _carouselMode = false);
+    });
+  }
+
+  void _sendInfuse(_BeadDef bead) {
+    final state = ref.read(bleConnectionNotifierProvider);
+    if (state is BleConnected) {
+      final cmd = 'INFUSE:ORB${bead.id}:COLOR:${bead.colorName}';
+      ref.read(bleConnectionNotifierProvider.notifier).sendCommand(cmd);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final topPad = MediaQuery.paddingOf(context).top;
+    final isConnected =
+        ref.watch(bleConnectionNotifierProvider) is BleConnected;
+
+    final orbitFade = Tween<double>(begin: 1, end: 0)
+        .animate(CurvedAnimation(parent: _modeCtrl, curve: Curves.easeIn));
+    final carouselFade = CurvedAnimation(
+      parent: _modeCtrl,
+      curve: Curves.easeOut,
+    );
 
     return Scaffold(
       backgroundColor: Colors.white,
       body: SoriDotsBackground(
         child: Stack(
           children: [
-          // ── Scattered beads ──────────────────────────────────────
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final w = constraints.maxWidth;
-              final h = constraints.maxHeight;
-              return Stack(
-                children: _beads.map((b) {
-                  final left = w * b.leftFrac - b.size / 2;
-                  final top = h * b.topFrac - b.size / 2;
-                  return Positioned(
-                    left: left,
-                    top: top,
-                    child: _BeadWidget(config: b),
+            // ── Orbit view ──────────────────────────────────────────────
+            FadeTransition(
+              opacity: orbitFade,
+              child: IgnorePointer(
+                ignoring: _carouselMode,
+                child: _LoopView(
+                  orbitCtrl: _orbitCtrl,
+                  onBeadTap: _enterCarousel,
+                ),
+              ),
+            ),
+
+            // ── Carousel view ───────────────────────────────────────────
+            if (_carouselMode)
+              FadeTransition(
+                opacity: carouselFade,
+                child: _CarouselView(
+                  pageCtrl: _pageCtrl,
+                  currentPage: _currentPage,
+                  isConnected: isConnected,
+                  onBack: _exitCarousel,
+                  onInfuse: _sendInfuse,
+                ),
+              ),
+
+            // ── Header ──────────────────────────────────────────────────
+            Positioned(
+              top: topPad + 12,
+              left: 24,
+              right: 24,
+              child: _Header(
+                carouselMode: _carouselMode,
+                onBack: _exitCarousel,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spiral coil loop view
+// 8 beads travel along an Archimedean spiral projected onto a tilted plane.
+// Each bead advances outward (inner→outer) and wraps back to centre, giving a
+// continuous coil-flowing effect.  Depth = spiral phase → bigger + more opaque
+// at the outer/front end, tiny + faint near the centre.
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _LoopView extends StatelessWidget {
+  const _LoopView({
+    required this.orbitCtrl,
+    required this.onBeadTap,
+  });
+
+  final AnimationController orbitCtrl;
+  final void Function(int index) onBeadTap;
+
+  static const _loopBeads = [
+    (color: Color(0xFFCE93D8), icon: 'assets/icons/light/star_beads.svg'),
+    (color: Color(0xFF80DEEA), icon: 'assets/icons/light/heart_beads.svg'),
+    (color: Color(0xFFA5D6A7), icon: 'assets/icons/light/star_beads.svg'),
+    (color: Color(0xFFFFF176), icon: 'assets/icons/light/plus_beads.svg'),
+    (color: Color(0xFFFFCC80), icon: 'assets/icons/light/plus_beads.svg'),
+    (color: Color(0xFFF48FB1), icon: 'assets/icons/light/heart_beads.svg'),
+    (color: Color(0xFF90CAF9), icon: 'assets/icons/light/heart_beads.svg'),
+    (color: Color(0xFFEF9A9A), icon: 'assets/icons/light/heart_beads.svg'),
+  ];
+
+  // Spiral makes this many full turns from centre to outer edge
+  static const _turns = 1.5;
+  // y-compression factor: < 1 tilts the coil away from viewer
+  static const _tilt = 0.48;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (_, constraints) {
+        final w = constraints.maxWidth;
+        final h = constraints.maxHeight;
+        final cx = w / 2;
+        final cy = h * 0.50;
+
+        final rMin = w * 0.04;
+        final rMax = w * 0.40;
+
+        const count = 8;
+        const baseSize = 112.0;
+
+        return AnimatedBuilder(
+          animation: orbitCtrl,
+          builder: (_, _) {
+            final t = orbitCtrl.value;
+
+            // Each bead sits at an evenly spaced slot on the spiral.
+            // As t increases the whole coil rotates, advancing every bead
+            // outward.  Phase wraps 0→1 continuously.
+            final items = List.generate(count, (i) {
+              final phase = ((i / count) + t) % 1.0; // 0..1 along spiral
+
+              // Angular position: spiral sweeps _turns full circles
+              final angle = phase * _turns * 2 * math.pi;
+
+              // Radius grows linearly with phase (Archimedean)
+              final r = rMin + (rMax - rMin) * phase;
+
+              // Project onto tilted plane: compress y for perspective depth
+              final x = cx + r * math.cos(angle);
+              final y = cy + r * math.sin(angle) * _tilt;
+
+              // Front = outer (phase ≈ 1): larger, fully opaque
+              final scale   = 0.28 + phase * 0.72; // 0.28 → 1.0
+              final opacity = 0.35 + phase * 0.65; // 0.35 → 1.0
+
+              return (index: i, x: x, y: y, scale: scale, opacity: opacity);
+            });
+
+            // Paint back (small) → front (large) for correct z-order
+            final sorted = [...items]..sort((a, b) => a.scale.compareTo(b.scale));
+
+            return Stack(
+              children: sorted.map((item) {
+                final bead = _loopBeads[item.index];
+                final size = baseSize * item.scale;
+                return Positioned(
+                  left: item.x - size / 2,
+                  top: item.y - size / 2,
+                  child: GestureDetector(
+                    onTap: () => onBeadTap(item.index % _kBeads.length),
+                    child: Opacity(
+                      opacity: item.opacity,
+                      child: Container(
+                        width: size,
+                        height: size,
+                        decoration: BoxDecoration(
+                          color: bead.color,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: bead.color
+                                  .withValues(alpha: 0.4 * item.scale),
+                              blurRadius: size * 0.22,
+                              offset: Offset(0, size * 0.08),
+                            ),
+                          ],
+                        ),
+                        padding: EdgeInsets.all(size * 0.22),
+                        child: SvgPicture.asset(
+                          bead.icon,
+                          colorFilter: const ColorFilter.mode(
+                            Color(0xFF2D2D2D),
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Carousel view
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CarouselView extends StatelessWidget {
+  const _CarouselView({
+    required this.pageCtrl,
+    required this.currentPage,
+    required this.isConnected,
+    required this.onBack,
+    required this.onInfuse,
+  });
+
+  final PageController pageCtrl;
+  final int currentPage;
+  final bool isConnected;
+  final VoidCallback onBack;
+  final void Function(_BeadDef bead) onInfuse;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final topPad = MediaQuery.paddingOf(context).top;
+    final bottomPad = MediaQuery.paddingOf(context).bottom;
+
+    return Column(
+      children: [
+        SizedBox(height: topPad + 80),
+
+        // ── Page view ──────────────────────────────────────────────────
+        SizedBox(
+          height: size.width * 0.72,
+          child: PageView.builder(
+            controller: pageCtrl,
+            itemCount: _kBeads.length,
+            itemBuilder: (context, index) {
+              return AnimatedBuilder(
+                animation: pageCtrl,
+                builder: (_, _) {
+                  double page = 0;
+                  if (pageCtrl.hasClients && pageCtrl.position.haveDimensions) {
+                    page = pageCtrl.page ?? index.toDouble();
+                  } else {
+                    page = index.toDouble();
+                  }
+                  final distance = (page - index).abs();
+                  final scale = (1 - distance * 0.18).clamp(0.7, 1.0);
+                  final opacity = (1 - distance * 0.45).clamp(0.3, 1.0);
+
+                  return Transform.scale(
+                    scale: scale,
+                    child: Opacity(
+                      opacity: opacity,
+                      child: _CarouselBead(bead: _kBeads[index]),
+                    ),
                   );
-                }).toList(),
+                },
               );
             },
           ),
+        ),
 
-          // ── Header ───────────────────────────────────────────────
-          Positioned(
-            top: topPad + 12,
+        const SizedBox(height: 24),
+
+        // ── Data packet card ───────────────────────────────────────────
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 280),
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                begin: const Offset(0, 0.08),
+                end: Offset.zero,
+              ).animate(anim),
+              child: child,
+            ),
+          ),
+          child: _DataPacketCard(
+            key: ValueKey(currentPage),
+            bead: _kBeads[currentPage],
+            isConnected: isConnected,
+            onInfuse: () => onInfuse(_kBeads[currentPage]),
+          ),
+        ),
+
+        const Spacer(),
+
+        // ── Bottom action bar ──────────────────────────────────────────
+        Padding(
+          padding: EdgeInsets.only(
             left: 24,
             right: 24,
-            child: const _PlaylistHeader(),
+            bottom: bottomPad + 16,
           ),
+          child: _BottomActionBar(
+            bead: _kBeads[currentPage],
+            isConnected: isConnected,
+            onBack: onBack,
+            onInfuse: () => onInfuse(_kBeads[currentPage]),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Carousel bead — large glowing circle with icon
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CarouselBead extends StatelessWidget {
+  const _CarouselBead({required this.bead});
+
+  final _BeadDef bead;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final beadSize = size.width * 0.62;
+
+    return Center(
+      child: Container(
+        width: beadSize,
+        height: beadSize,
+        decoration: BoxDecoration(
+          color: bead.color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: bead.color.withValues(alpha: 0.55),
+              blurRadius: 40,
+              spreadRadius: 4,
+              offset: const Offset(0, 12),
+            ),
           ],
         ),
+        padding: EdgeInsets.all(beadSize * 0.22),
+        child: SvgPicture.asset(
+          bead.iconPath,
+          colorFilter: const ColorFilter.mode(
+            Color(0xFF2D2D2D),
+            BlendMode.srcIn,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Data packet card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DataPacketCard extends StatelessWidget {
+  const _DataPacketCard({
+    super.key,
+    required this.bead,
+    required this.isConnected,
+    required this.onInfuse,
+  });
+
+  final _BeadDef bead;
+  final bool isConnected;
+  final VoidCallback onInfuse;
+
+  String get _command => 'INFUSE:ORB${bead.id}:COLOR:${bead.colorName}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Bead name + id row
+            Row(
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: bead.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  bead.colorName,
+                  style: const TextStyle(
+                    fontFamily: 'Punto',
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1A1A),
+                  ),
+                ),
+                const Spacer(),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF5F5F5),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    'ORB ${bead.id}',
+                    style: const TextStyle(
+                      fontFamily: 'Punto',
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF757575),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 12),
+            const Divider(height: 1, color: Color(0xFFF0F0F0)),
+            const SizedBox(height: 12),
+
+            // Data packet preview
+            Text(
+              'Data Packet',
+              style: TextStyle(
+                fontFamily: 'Punto',
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade400,
+                letterSpacing: 0.8,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _command,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  color: Color(0xFF7B61FF),
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Field rows
+            _FieldRow(label: 'id', value: '${bead.id}', color: bead.color),
+            const SizedBox(height: 4),
+            _FieldRow(
+              label: 'color',
+              value: bead.colorName,
+              color: bead.color,
+            ),
+            const SizedBox(height: 4),
+            _FieldRow(
+              label: 'status',
+              value: isConnected ? 'READY' : 'NOT CONNECTED',
+              color: isConnected
+                  ? const Color(0xFF4CAF50)
+                  : const Color(0xFFF44336),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FieldRow extends StatelessWidget {
+  const _FieldRow({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label;
+  final String value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: Color(0xFFBDBDBD),
+            ),
+          ),
+        ),
+        const Text(
+          '→  ',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            color: Color(0xFFE0E0E0),
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            color: color,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom action bar
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BottomActionBar extends StatelessWidget {
+  const _BottomActionBar({
+    required this.bead,
+    required this.isConnected,
+    required this.onBack,
+    required this.onInfuse,
+  });
+
+  final _BeadDef bead;
+  final bool isConnected;
+  final VoidCallback onBack;
+  final VoidCallback onInfuse;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.07),
+            blurRadius: 12,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          // Back
+          _ActionButton(
+            icon: Icons.arrow_back_rounded,
+            label: 'Back',
+            color: const Color(0xFF9E9E9E),
+            onTap: onBack,
+          ),
+
+          // Infuse — primary action
+          _ActionButton(
+            icon: Icons.bolt_rounded,
+            label: 'Infuse',
+            color: isConnected ? const Color(0xFF7B61FF) : const Color(0xFFBDBDBD),
+            filled: true,
+            fillColor: isConnected
+                ? bead.color.withValues(alpha: 0.15)
+                : const Color(0xFFF5F5F5),
+            onTap: isConnected ? onInfuse : null,
+          ),
+
+          // BLE status
+          _ActionButton(
+            icon: isConnected
+                ? Icons.bluetooth_connected
+                : Icons.bluetooth_disabled,
+            label: isConnected ? 'Live' : 'Offline',
+            color: isConnected
+                ? const Color(0xFF4CAF50)
+                : const Color(0xFFBDBDBD),
+            onTap: null,
+          ),
+
+          // Info
+          _ActionButton(
+            icon: Icons.info_outline_rounded,
+            label: 'Info',
+            color: const Color(0xFF9E9E9E),
+            onTap: () => _showPacketInfo(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showPacketInfo(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text(
+          'Infuse Command',
+          style: TextStyle(fontFamily: 'Punto', fontWeight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Sending this packet to the device will change the selected orb color:',
+              style: TextStyle(fontFamily: 'Punto', fontSize: 13, color: Color(0xFF757575)),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                'INFUSE:ORB${bead.id}:COLOR:${bead.colorName}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color(0xFF7B61FF),
+                  fontSize: 13,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it', style: TextStyle(fontFamily: 'Punto')),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.filled = false,
+    this.fillColor,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool filled;
+  final Color? fillColor;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: filled
+                  ? (fillColor ?? color.withValues(alpha: 0.1))
+                  : const Color(0xFFF8F8F8),
+              borderRadius: BorderRadius.circular(16),
+              border: filled
+                  ? Border.all(color: color.withValues(alpha: 0.3), width: 1.5)
+                  : null,
+            ),
+            child: Icon(icon, color: color, size: 22),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Punto',
+              fontSize: 10,
+              color: color,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -182,76 +848,49 @@ class SoriDiscoverScreen extends StatelessWidget {
 // Header
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _PlaylistHeader extends StatelessWidget {
-  const _PlaylistHeader();
+class _Header extends StatelessWidget {
+  const _Header({required this.carouselMode, required this.onBack});
+
+  final bool carouselMode;
+  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Playlist',
-          style: TextStyle(
-            fontFamily: 'Punto',
-            fontSize: 28,
-            fontWeight: FontWeight.w700,
-            color: Color(0xFFCDB8E8),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          children: List.generate(
-            3,
-            (_) => Container(
-              width: 6,
-              height: 6,
-              margin: const EdgeInsets.only(right: 4),
-              decoration: const BoxDecoration(
-                color: Color(0xFFD4C5EC),
-                shape: BoxShape.circle,
-              ),
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: carouselMode
+          ? const SizedBox.shrink(key: ValueKey('hidden'))
+          : Column(
+              key: const ValueKey('title'),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Playlist',
+                  style: TextStyle(
+                    fontFamily: 'Punto',
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFFCDB8E8),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: List.generate(
+                    3,
+                    (_) => Container(
+                      width: 6,
+                      height: 6,
+                      margin: const EdgeInsets.only(right: 4),
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFD4C5EC),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ),
-        ),
-      ],
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Bead widget
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _BeadWidget extends StatelessWidget {
-  const _BeadWidget({required this.config});
-
-  final _BeadConfig config;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: config.size,
-      height: config.size,
-      decoration: BoxDecoration(
-        color: config.color,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: config.color.withValues(alpha: 0.45),
-            blurRadius: config.size * 0.18,
-            offset: Offset(0, config.size * 0.06),
-          ),
-        ],
-      ),
-      padding: EdgeInsets.all(config.size * 0.22),
-      child: SvgPicture.asset(
-        config.iconPath,
-        colorFilter: const ColorFilter.mode(
-          Color(0xFF2D2D2D),
-          BlendMode.srcIn,
-        ),
-      ),
-    );
-  }
-}

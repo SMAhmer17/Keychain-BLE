@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -289,17 +291,20 @@ class _BeadListItem extends StatelessWidget {
                   Positioned(
                     top: _beadSize,
                     bottom: 0,
-                    left: _beadSize / 2 - 1,
-                    child: Container(
-                      width: 2,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            bead.color.withValues(alpha: 0.6),
-                            bead.color.withValues(alpha: 0.15),
-                          ],
+                    left: _beadSize / 2 - 1.5,
+                    child: ImageFiltered(
+                      imageFilter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                      child: Container(
+                        width: 3,
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Color(0xFFFFE1E1),
+                              Color(0xFFBAF2FF),
+                            ],
+                          ),
                         ),
                       ),
                     ),

@@ -38,7 +38,9 @@ class _SoriNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SafeArea(
+      top: false,
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -66,7 +68,8 @@ class _SoriNavBar extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 }
 
