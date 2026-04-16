@@ -30,18 +30,16 @@ class _SoriNavBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    _NavItem(iconPath: 'assets/icons/light/bracelt_tab.svg'),
     _NavItem(iconPath: 'assets/icons/light/home_tab.svg'),
-    _NavItem(iconPath: 'assets/icons/light/settings_tab.svg'),
+    _NavItem(iconPath: 'assets/icons/light/bracelt_tab.svg'),
     _NavItem(iconPath: 'assets/icons/light/upload_tab.svg'),
+    _NavItem(iconPath: 'assets/icons/light/settings_tab.svg'),
   ];
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      top: false,
-      child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+    return Container(
+      padding: const EdgeInsets.only(left: 8, right: 8, top: 10, bottom: 40),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -68,8 +66,7 @@ class _SoriNavBar extends StatelessWidget {
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 }
 

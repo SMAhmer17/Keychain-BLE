@@ -5,29 +5,27 @@
       "name": "Keychain BLE (debug)",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main.dart",
-      "args": ["--flavor", "keychain"]
+      "program": "lib/main.dart"
     },
     {
       "name": "Keychain BLE (release)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "args": ["--flavor", "keychain", "--release"]
+      "args": ["--release"]
     },
     {
       "name": "Sori (debug)",
       "request": "launch",
       "type": "dart",
-      "program": "lib/main_sori.dart",
-      "args": ["--flavor", "sori"]
+      "program": "lib/main_sori.dart"
     },
     {
       "name": "Sori (release)",
       "request": "launch",
       "type": "dart",
       "program": "lib/main_sori.dart",
-      "args": ["--flavor", "sori", "--release"]
+      "args": ["--release"]
     }
   ]
 }
