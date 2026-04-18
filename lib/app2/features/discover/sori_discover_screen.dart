@@ -8,6 +8,27 @@ import 'package:keychain_ble/features/ble/model/ble_connection_status.dart';
 import 'package:keychain_ble/features/ble/provider/ble_connection_notifier.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Sort options
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum _SortOption { defaultOrder, byColor, shuffle }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Spiral bead visuals — module-level so sort can reorder them
+// ─────────────────────────────────────────────────────────────────────────────
+
+const _kLoopBeads = [
+  (color: Color(0xFFCE93D8), icon: 'assets/icons/light/star_beads.svg'),
+  (color: Color(0xFF80DEEA), icon: 'assets/icons/light/heart_beads.svg'),
+  (color: Color(0xFFA5D6A7), icon: 'assets/icons/light/star_beads.svg'),
+  (color: Color(0xFFFFF176), icon: 'assets/icons/light/plus_beads.svg'),
+  (color: Color(0xFFFFCC80), icon: 'assets/icons/light/plus_beads.svg'),
+  (color: Color(0xFFF48FB1), icon: 'assets/icons/light/heart_beads.svg'),
+  (color: Color(0xFF90CAF9), icon: 'assets/icons/light/heart_beads.svg'),
+  (color: Color(0xFFEF9A9A), icon: 'assets/icons/light/heart_beads.svg'),
+];
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Named bead definitions — shared by orbit view and carousel
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -79,9 +100,43 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
   // Drives the fade between orbit view and carousel view
   late final AnimationController _modeCtrl;
 
+  // Snaps the spiral to the nearest bead after a swipe ends
+  late final AnimationController _snapCtrl;
+  double _swipeOffset = 0.0;
+  double _snapFrom = 0.0;
+  double _snapTo = 0.0;
+  int _pendingCarouselIndex = 0;
+
   bool _carouselMode = false;
   late final PageController _pageCtrl;
   int _currentPage = 0;
+
+  _SortOption _sortOption = _SortOption.defaultOrder;
+  List<({Color color, String icon})> _shuffledBeads =
+      List.from(_kLoopBeads);
+
+  List<({Color color, String icon})> get _displayBeads {
+    switch (_sortOption) {
+      case _SortOption.defaultOrder:
+        return _kLoopBeads;
+      case _SortOption.byColor:
+        return List.from(_kLoopBeads)
+          ..sort((a, b) =>
+              HSVColor.fromColor(a.color).hue
+                  .compareTo(HSVColor.fromColor(b.color).hue));
+      case _SortOption.shuffle:
+        return _shuffledBeads;
+    }
+  }
+
+  void _onSortSelected(_SortOption option) {
+    setState(() {
+      _sortOption = option;
+      if (option == _SortOption.shuffle) {
+        _shuffledBeads = List.from(_kLoopBeads)..shuffle();
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -97,6 +152,11 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
       duration: const Duration(milliseconds: 380),
     );
 
+    _snapCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 260),
+    )..addListener(_onSnapTick);
+
     _pageCtrl = PageController(viewportFraction: 0.72);
     _pageCtrl.addListener(() {
       final p = _pageCtrl.page?.round() ?? 0;
@@ -108,8 +168,50 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
   void dispose() {
     _orbitCtrl.dispose();
     _modeCtrl.dispose();
+    _snapCtrl.dispose();
     _pageCtrl.dispose();
     super.dispose();
+  }
+
+  void _onSnapTick() {
+    final v = Curves.easeOutCubic.transform(_snapCtrl.value);
+    setState(() => _swipeOffset = _snapFrom + (_snapTo - _snapFrom) * v);
+  }
+
+  void _onSpiralDragUpdate(DragUpdateDetails d) {
+    // ~320 px drag = full phase cycle (8 beads pass the front)
+    setState(() => _swipeOffset -= d.delta.dx / 320.0);
+  }
+
+  void _onSpiralDragEnd(DragEndDetails _) {
+    const frontPhase = 0.88;
+    const count = 8;
+    final t = _orbitCtrl.value;
+
+    double bestDiff = double.infinity;
+    int bestIndex = 0;
+    double bestOffset = _swipeOffset;
+
+    for (int i = 0; i < count; i++) {
+      final phase = ((i / count) + t + _swipeOffset) % 1.0;
+      var diff = (phase - frontPhase).abs();
+      if (diff > 0.5) diff = 1.0 - diff;
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestIndex = i;
+        var delta = frontPhase - phase;
+        if (delta > 0.5) delta -= 1.0;
+        if (delta < -0.5) delta += 1.0;
+        bestOffset = _swipeOffset + delta;
+      }
+    }
+
+    _snapFrom = _swipeOffset;
+    _snapTo = bestOffset;
+    _pendingCarouselIndex = bestIndex % _kBeads.length;
+    _snapCtrl.forward(from: 0).then((_) {
+      if (mounted) _enterCarousel(_pendingCarouselIndex);
+    });
   }
 
   void _enterCarousel(int index) {
@@ -156,13 +258,20 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
         child: Stack(
           children: [
             // ── Orbit view ──────────────────────────────────────────────
-            FadeTransition(
-              opacity: orbitFade,
-              child: IgnorePointer(
-                ignoring: _carouselMode,
-                child: _LoopView(
-                  orbitCtrl: _orbitCtrl,
-                  onBeadTap: _enterCarousel,
+            GestureDetector(
+              onHorizontalDragUpdate:
+                  _carouselMode ? null : _onSpiralDragUpdate,
+              onHorizontalDragEnd: _carouselMode ? null : _onSpiralDragEnd,
+              child: FadeTransition(
+                opacity: orbitFade,
+                child: IgnorePointer(
+                  ignoring: _carouselMode,
+                  child: _LoopView(
+                    orbitCtrl: _orbitCtrl,
+                    swipeOffset: _swipeOffset,
+                    beads: _displayBeads,
+                    onBeadTap: _enterCarousel,
+                  ),
                 ),
               ),
             ),
@@ -182,12 +291,13 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
 
             // ── Header ──────────────────────────────────────────────────
             Positioned(
-              top: topPad + 12,
+              top: topPad + 20,
               left: 24,
-              right: 24,
               child: _Header(
                 carouselMode: _carouselMode,
                 onBack: _exitCarousel,
+                sortOption: _sortOption,
+                onSortSelected: _onSortSelected,
               ),
             ),
           ],
@@ -208,27 +318,18 @@ class _SoriDiscoverScreenState extends ConsumerState<SoriDiscoverScreen>
 class _LoopView extends StatelessWidget {
   const _LoopView({
     required this.orbitCtrl,
+    required this.swipeOffset,
+    required this.beads,
     required this.onBeadTap,
   });
 
   final AnimationController orbitCtrl;
+  final double swipeOffset;
+  final List<({Color color, String icon})> beads;
   final void Function(int index) onBeadTap;
 
-  static const _loopBeads = [
-    (color: Color(0xFFCE93D8), icon: 'assets/icons/light/star_beads.svg'),
-    (color: Color(0xFF80DEEA), icon: 'assets/icons/light/heart_beads.svg'),
-    (color: Color(0xFFA5D6A7), icon: 'assets/icons/light/star_beads.svg'),
-    (color: Color(0xFFFFF176), icon: 'assets/icons/light/plus_beads.svg'),
-    (color: Color(0xFFFFCC80), icon: 'assets/icons/light/plus_beads.svg'),
-    (color: Color(0xFFF48FB1), icon: 'assets/icons/light/heart_beads.svg'),
-    (color: Color(0xFF90CAF9), icon: 'assets/icons/light/heart_beads.svg'),
-    (color: Color(0xFFEF9A9A), icon: 'assets/icons/light/heart_beads.svg'),
-  ];
-
   // Spiral makes this many full turns from centre to outer edge
-  static const _turns = 1.5;
-  // y-compression factor: < 1 tilts the coil away from viewer
-  static const _tilt = 0.48;
+  static const _turns = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +341,6 @@ class _LoopView extends StatelessWidget {
         final cy = h * 0.50;
 
         final rMin = w * 0.04;
-        final rMax = w * 0.40;
 
         const count = 8;
         const baseSize = 112.0;
@@ -250,25 +350,43 @@ class _LoopView extends StatelessWidget {
           builder: (_, _) {
             final t = orbitCtrl.value;
 
+            // Breathing: rMax pulses slowly (one breath every ~20 s)
+            final breath = math.sin(t * 2 * math.pi * 1.5);
+            final rMax = w * (0.38 + 0.03 * breath);
+
+            // Tilt wobble: coil rocks gently in perspective (~43 s cycle)
+            final tilt = 0.44 + 0.07 * math.sin(t * 2 * math.pi * 0.7);
+
             // Each bead sits at an evenly spaced slot on the spiral.
             // As t increases the whole coil rotates, advancing every bead
             // outward.  Phase wraps 0→1 continuously.
             final items = List.generate(count, (i) {
-              final phase = ((i / count) + t) % 1.0; // 0..1 along spiral
+              final phase = ((i / count) + t + swipeOffset) % 1.0; // 0..1 along spiral
+
+              // Ease phase for radius: quadratic — beads accelerate outward
+              final easedPhase = phase * phase;
 
               // Angular position: spiral sweeps _turns full circles
               final angle = phase * _turns * 2 * math.pi;
 
-              // Radius grows linearly with phase (Archimedean)
-              final r = rMin + (rMax - rMin) * phase;
+              // Radius grows with eased phase (clusters near centre, spreads out)
+              final r = rMin + (rMax - rMin) * easedPhase;
 
               // Project onto tilted plane: compress y for perspective depth
               final x = cx + r * math.cos(angle);
-              final y = cy + r * math.sin(angle) * _tilt;
+              final y = cy + r * math.sin(angle) * tilt;
 
-              // Front = outer (phase ≈ 1): larger, fully opaque
-              final scale   = 0.28 + phase * 0.72; // 0.28 → 1.0
-              final opacity = 0.35 + phase * 0.65; // 0.35 → 1.0
+              // Front = outer (phase ≈ 1): larger, fully opaque.
+              // Fade in/out at both ends so the wrap-around is invisible.
+              final scale = 0.28 + phase * 0.72; // 0.28 → 1.0
+              const fadeIn = 0.15;
+              const fadeOut = 0.85;
+              final fadeFactor = phase < fadeIn
+                  ? phase / fadeIn
+                  : phase > fadeOut
+                      ? (1.0 - phase) / (1.0 - fadeOut)
+                      : 1.0;
+              final opacity = (0.35 + phase * 0.65) * fadeFactor;
 
               return (index: i, x: x, y: y, scale: scale, opacity: opacity);
             });
@@ -278,7 +396,7 @@ class _LoopView extends StatelessWidget {
 
             return Stack(
               children: sorted.map((item) {
-                final bead = _loopBeads[item.index];
+                final bead = beads[item.index];
                 final size = baseSize * item.scale;
                 return Positioned(
                   left: item.x - size / 2,
@@ -350,11 +468,11 @@ class _CarouselView extends StatelessWidget {
 
     return Column(
       children: [
-        SizedBox(height: topPad + 80),
+        SizedBox(height: topPad + 56),
 
         // ── Page view ──────────────────────────────────────────────────
         SizedBox(
-          height: size.width * 0.72,
+          height: size.width * 0.65,
           child: PageView.builder(
             controller: pageCtrl,
             itemCount: _kBeads.length,
@@ -441,7 +559,7 @@ class _CarouselBead extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final beadSize = size.width * 0.62;
+    final beadSize = size.width * 0.56;
 
     return Center(
       child: Container(
@@ -849,10 +967,23 @@ class _ActionButton extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  const _Header({required this.carouselMode, required this.onBack});
+  const _Header({
+    required this.carouselMode,
+    required this.onBack,
+    required this.sortOption,
+    required this.onSortSelected,
+  });
 
   final bool carouselMode;
   final VoidCallback onBack;
+  final _SortOption sortOption;
+  final void Function(_SortOption) onSortSelected;
+
+  static const _labels = {
+    _SortOption.defaultOrder: 'Default',
+    _SortOption.byColor: 'By Color',
+    _SortOption.shuffle: 'Shuffle',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -874,17 +1005,98 @@ class _Header extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Row(
-                  children: List.generate(
-                    3,
-                    (_) => Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.only(right: 4),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFD4C5EC),
-                        shape: BoxShape.circle,
-                      ),
+                PopupMenuButton<_SortOption>(
+                  onSelected: onSortSelected,
+                  offset: const Offset(0, 30),
+                  color: Colors.white,
+                  elevation: 12,
+                  shadowColor: const Color(0x22CDB8E8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    side: const BorderSide(
+                      color: Color(0xFFEDE7F6),
+                      width: 1,
+                    ),
+                  ),
+                  itemBuilder: (_) => _SortOption.values
+                      .map(
+                        (o) => PopupMenuItem(
+                          value: o,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 4,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: sortOption == o
+                                  ? const Color(0xFFF3EEFF)
+                                  : Colors.transparent,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  sortOption == o
+                                      ? Icons.check_circle_rounded
+                                      : Icons.circle_outlined,
+                                  size: 15,
+                                  color: sortOption == o
+                                      ? const Color(0xFFAB8FD8)
+                                      : const Color(0xFFD4C5EC),
+                                ),
+                                const SizedBox(width: 10),
+                                Text(
+                                  _labels[o]!,
+                                  style: TextStyle(
+                                    fontFamily: 'Punto',
+                                    fontSize: 13,
+                                    fontWeight: sortOption == o
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                    color: sortOption == o
+                                        ? const Color(0xFF7B5EA7)
+                                        : const Color(0xFF9E9E9E),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3EEFF),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          _labels[sortOption]!,
+                          style: const TextStyle(
+                            fontFamily: 'Punto',
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Color(0xFFAB8FD8),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: Color(0xFFAB8FD8),
+                          size: 14,
+                        ),
+                      ],
                     ),
                   ),
                 ),

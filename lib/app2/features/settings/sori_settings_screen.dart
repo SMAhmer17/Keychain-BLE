@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:keychain_ble/app2/core/widgets/sori_dots_background.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -63,15 +62,6 @@ class SoriSettingsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // App name
-              Padding(
-                padding: EdgeInsets.fromLTRB(24, 60, 24, 0),
-                child: SvgPicture.asset(
-                  'assets/icons/light/app_name.svg',
-                  height: 38,
-                ),
-              ),
-              const SizedBox(height: 24),
               Spacer(),
               // Menu card
               Padding(

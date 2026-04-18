@@ -16,8 +16,7 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final size = MediaQuery.sizeOf(context);
-    final topPad = MediaQuery.paddingOf(context).top;
-    final bleState = ref.watch(bleConnectionNotifierProvider);
+final bleState = ref.watch(bleConnectionNotifierProvider);
     final isConnected = bleState is BleConnected;
 
     ref.listen<BleConnectionStatus>(bleConnectionNotifierProvider, (
@@ -91,16 +90,6 @@ class HomeScreen extends ConsumerWidget {
       body: SoriDotsBackground(
         child: Stack(
           children: [
-            // ── App name ─────────────────────────────────────────────
-            Positioned(
-              top: topPad + 20,
-              left: 24,
-              child: SvgPicture.asset(
-                'assets/icons/light/app_name.svg',
-                height: 38,
-              ),
-            ),
-
             // ── Avatar + beads + status ───────────────────────────────
             Positioned.fill(
               top: .3.sh,
