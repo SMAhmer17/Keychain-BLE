@@ -9,9 +9,25 @@ class SoriShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPad = MediaQuery.paddingOf(context).top;
+
     return Scaffold(
       backgroundColor: Colors.white,
-      body: navigationShell,
+      body: Stack(
+        children: [
+          navigationShell,
+          if (navigationShell.currentIndex == 0 ||
+              navigationShell.currentIndex == 3)
+            Positioned(
+              top: topPad + 20,
+              left: 24,
+              child: SvgPicture.asset(
+                'assets/icons/light/app_name.svg',
+                height: 38,
+              ),
+            ),
+        ],
+      ),
       bottomNavigationBar: _SoriNavBar(
         currentIndex: navigationShell.currentIndex,
         onTap: (index) => navigationShell.goBranch(
@@ -30,16 +46,16 @@ class _SoriNavBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _items = [
-    _NavItem(iconPath: 'assets/icons/light/bracelt_tab.svg'),
     _NavItem(iconPath: 'assets/icons/light/home_tab.svg'),
-    _NavItem(iconPath: 'assets/icons/light/settings_tab.svg'),
+    _NavItem(iconPath: 'assets/icons/light/bracelt_tab.svg'),
     _NavItem(iconPath: 'assets/icons/light/upload_tab.svg'),
+    _NavItem(iconPath: 'assets/icons/light/settings_tab.svg'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+      padding: const EdgeInsets.only(left: 8, right: 8, top: 10, bottom: 40),
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
